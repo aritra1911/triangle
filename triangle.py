@@ -150,6 +150,14 @@ class TriangleFractal:
         return triangles
 
     def generate_triangles(self, triangle, layers):
+        if not isinstance(layers, int):
+            raise TypeError("Layers must be of integer type")
+
+        if layers < 2:
+            raise ValueError(
+                "Recursion of less than 2 layered triangles is not possible"
+            )
+
         x = triangle.get_top_vertex().get_x()
         y = triangle.get_top_vertex().get_y()
         height = triangle.get_height()
@@ -173,7 +181,7 @@ class TriangleFractal:
 def main():
     sierpinski = TriangleFractal()
     main_triangle = Triangle(Point(0, 1/6), 2/3)
-    sierpinski.generate_triangles(main_triangle, 3)
+    sierpinski.generate_triangles(main_triangle, "3.5")
 
     sierpinski.save_cairo_surface("3_layers.png")
 

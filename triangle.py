@@ -1,125 +1,54 @@
 import numpy as np
 import cairo
-
-TAU = 2*np.pi
-DEGREES = TAU / 360
-
-HEIGHT = 1080
-WIDTH = int(2*HEIGHT / np.sqrt(3))
-
-class Point():
-    '''Creates a point on a coordinate plane with values x and y.'''
-    def __init__(self, x, y):
-        '''Defines x and y variables'''
-        self.x = x
-        self.y = y
-
-    def __eq__(self, other):
-        '''Overrides the default implementation'''
-        if isinstance(other, Point):
-            a1 = np.array([self.x, self.y])
-            a2 = np.array([other.x, other.y])
-            result = np.isclose(a1, a2)
-            return result[0] and result[1]
-        return False
-
-
-    def move(self, dx=0, dy=0):
-        '''Determines where x and y move'''
-        self.x += dx
-        self.y += dy
-
-    def __str__(self):
-        return "Point(%s,%s)"%(self.x, self.y)
-
-    def set_x(self, x):
-        self.x = x
-
-    def set_y(self, y):
-        self.y = y
-
-    def get_x(self):
-        return self.x
-
-    def get_y(self):
-        return self.y
-
-    def distance(self, other):
-        dx = self.x - other.x
-        dy = self.y - other.y
-        return np.hypot(dx, dy)
-
-class Triangle:
-    def __init__(self, centroid, radius):
-        self.centroid = centroid
-        self.radius = radius
-
-    def __str__(self):
-        return "Centroid : %s, Radius : %f"%(self.centroid, self.radius)
-
-    def __eq__(self, other):
-        if isinstance(other, Triangle):
-            centroids_equal = self.centroid == other.centroid
-            radii_equal = np.isclose(np.array([self.radius]), np.array([other.radius]))[0]
-            return centroids_equal and radii_equal
-        return False
-
-    def get_radius(self):
-        return self.radius
-
-    def get_centroid(self):
-        return self.centroid
-
-    def get_height(self):
-        return self.radius*(1 + np.sin(TAU/12))
-
-    def get_top_vertex(self):
-        return Point(
-            self.centroid.get_x(),
-            self.centroid.get_y() - self.radius
-        )
-
-    def draw(self, ctx, pattern, max_radius):
-        if self.radius <= max_radius:
-            ctx.set_source(pattern["foreground"])
-
-            moved = False
-            for theta in np.arange(0, TAU, 120*DEGREES):
-                point = Point(
-                    self.radius * np.cos(theta - TAU/4) + self.centroid.get_x(),
-                    self.radius * np.sin(theta - TAU/4) + self.centroid.get_y()
-                )
-                if not moved:
-                    ctx.move_to(point.get_x(), point.get_y())
-                    moved = True
-                else:
-                    ctx.line_to(point.get_x(), point.get_y())
-
-            ctx.close_path()
-            ctx.fill()
-
-            return True
-        return False
+import time
+from movie_writer import MovieWriter
+from constants import *
+from utils import *
 
 class TriangleFractal:
-    def __init__(self):
+    def __init__(self, pw, ph):
         self.pattern = {
             # "background" : cairo.SolidPattern(0, 0, 0, 0),
             "background" : cairo.SolidPattern(0.06, 0.06, 0.06),
             "foreground" : cairo.SolidPattern(0.35, 0.77, 0.87)
         }
+        self.pixel_width = pw
+        self.pixel_height = ph
+        self.pixel_array_dtype = 'uint8'
+        self.n_channels = 4
         self.init_cairo_context()
 
     def init_cairo_context(self):
-        self.surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, WIDTH, HEIGHT)
+        # Initialize pixel_array
+        self.pixel_array = np.zeros(
+            (self.pixel_width, self.pixel_height, self.n_channels),
+            dtype=self.pixel_array_dtype
+        )
+
+        # Initialize cairo surface and context
+        self.surface = cairo.ImageSurface.create_for_data(
+            self.pixel_array,
+            cairo.FORMAT_ARGB32,
+            self.pixel_width, self.pixel_height
+        )
         self.ctx = cairo.Context(self.surface)
-        self.ctx.scale(HEIGHT, HEIGHT)  # Normalizing the canvas
-        self.ctx.translate(0.5*(WIDTH/HEIGHT), 0.5)
+
+        # Normalizing the canvas
+        self.ctx.scale(self.pixel_height, self.pixel_height)
+        aspect_ratio = self.pixel_width / self.pixel_height
+        self.ctx.translate(0.5*aspect_ratio, 0.5)
+
+        self.paint_it_black()
+
+    def paint_it_black(self):
         self.ctx.set_source(self.pattern["background"])
         self.ctx.paint()
 
     def save_cairo_surface(self, filename):
         self.surface.write_to_png(filename)
+
+    def get_frame(self):
+        return self.pixel_array
 
     def generate_triangles_in_row(self, triangle, row_index):
         if row_index < 0:
@@ -174,16 +103,75 @@ class TriangleFractal:
             row_index += 1
 
         for t in triangles:
-            if not t.draw(self.ctx, self.pattern, 1 / HEIGHT):
+            if not t.draw(self.ctx, self.pattern, 1 / self.pixel_height):
                 self.generate_triangles(t, layers)
 
 
-def main():
-    sierpinski = TriangleFractal()
-    main_triangle = Triangle(Point(0, 1/6), 2/3)
-    sierpinski.generate_triangles(main_triangle, "3.5")
+class TriangleAnimationWriter:
+    def __init__(self, fw, fh, fps, layers):
+        self.frame_width = fw
+        self.frame_height = fh
+        self.frame_rate = fps
+        self.layers = layers
+        self.writer = MovieWriter(fw, fh, fps)
+        self.fractal = TriangleFractal(fw, fh)
+        self.triangle = Triangle(
+            Point(0, CENTROID_Y),
+            RADIUS
+        )
+        self.calculate_distance()
 
-    sierpinski.save_cairo_surface("3_layers.png")
+    def calculate_distance(self):
+        self.distance = self.triangle.get_radius()*(self.layers - 1)
+        print(self.distance)
+
+
+    def write_animation(self, run_time):
+        print("Initializing animation write...", end='\r')
+        dy = self.distance / (run_time * self.frame_rate)
+        start_time = time.time()
+        self.writer.open_movie_pipe()
+        travelled = 0
+
+        while travelled < self.distance:
+            print(" " * 80, end='\r')
+            percentage = (travelled / self.distance) * 100
+            print(f"{percentage} %", end='\r')
+            self.fractal.generate_triangles(self.triangle, self.layers)
+            self.writer.write_frame(self.fractal.get_frame())
+            self.triangle.update_position(dy)
+            travelled += dy
+            self.fractal.paint_it_black()
+
+        self.writer.close_movie_pipe()
+        end_time = time.time()
+
+        total_time = end_time - start_time
+        if total_time > 0:
+            display_time = total_time
+            unit = 's'
+        else:
+            display_time = total_time * 1000
+            unit = 'ms'
+
+        print(f"Finished animating in {display_time} {unit}")
+
+
+def main():
+    # sierpinski = TriangleFractal(DEFAULT_PIXEL_WIDTH, DEFAULT_PIXEL_HEIGHT)
+    # main_triangle = Triangle(Point(0, 1/6), 2/3)
+    # layers = 2
+    # sierpinski.generate_triangles(main_triangle, layers)
+    # sierpinski.save_cairo_surface(f"{layers}_layers.png")
+
+    triangle_animation = TriangleAnimationWriter(
+        DEFAULT_PIXEL_WIDTH,
+        DEFAULT_PIXEL_HEIGHT,
+        DEFAULT_FRAME_RATE, 2
+    )
+
+    triangle_animation.write_animation(2)
+
 
 if __name__ == '__main__':
     main()

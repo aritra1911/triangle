@@ -74,9 +74,14 @@ class Triangle:
             self.centroid.get_y() - self.radius
         )
 
-    def update_position(self, distance):
-        self.centroid.move(dy=distance)
-        self.radius += distance
+    def get_scale_factor(self, frames, layers):
+        final_radius = self.radius * layers
+        return (final_radius / self.radius)**(1 / frames)
+
+    def update_position(self, scale_factor):
+        self.radius *= scale_factor
+        displacement = self.radius*(1 - 1/scale_factor)
+        self.centroid.move(dy=displacement)
 
     def draw(self, ctx, pattern, max_radius):
         if self.radius <= max_radius:

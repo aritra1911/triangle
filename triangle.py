@@ -119,28 +119,21 @@ class TriangleAnimationWriter:
             Point(0, CENTROID_Y),
             RADIUS
         )
-        self.calculate_distance()
-
-    def calculate_distance(self):
-        self.distance = self.triangle.get_radius()*(self.layers - 1)
-        print(self.distance)
-
 
     def write_animation(self, run_time):
         print("Initializing animation write...", end='\r')
-        dy = self.distance / (run_time * self.frame_rate)
+        frames = run_time * self.frame_rate
+        factor = self.triangle.get_scale_factor(frames, self.layers)
         start_time = time.time()
         self.writer.open_movie_pipe()
-        travelled = 0
 
-        while travelled < self.distance:
+        for frame in range(frames):
             print(" " * 80, end='\r')
-            percentage = (travelled / self.distance) * 100
+            percentage = (frame / frames) * 100
             print(f"{percentage} %", end='\r')
             self.fractal.generate_triangles(self.triangle, self.layers)
             self.writer.write_frame(self.fractal.get_frame())
-            self.triangle.update_position(dy)
-            travelled += dy
+            self.triangle.update_position(factor)
             self.fractal.paint_it_black()
 
         self.writer.close_movie_pipe()
@@ -167,7 +160,7 @@ def main():
     triangle_animation = TriangleAnimationWriter(
         DEFAULT_PIXEL_WIDTH,
         DEFAULT_PIXEL_HEIGHT,
-        DEFAULT_FRAME_RATE, 2
+        DEFAULT_FRAME_RATE, 3
     )
 
     triangle_animation.write_animation(2)

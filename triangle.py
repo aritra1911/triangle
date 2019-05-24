@@ -1,6 +1,7 @@
 import numpy as np
 import cairo
 import time
+import config
 from movie_writer import MovieWriter
 from constants import *
 from utils import *
@@ -9,7 +10,7 @@ class TriangleFractal:
     def __init__(self, pw, ph):
         self.pattern = {
             # "background" : cairo.SolidPattern(0, 0, 0, 0),
-            "background" : cairo.SolidPattern(0.06, 0.06, 0.06),
+            "background" : cairo.SolidPattern(0, 0, 0),
             "foreground" : cairo.SolidPattern(0.35, 0.77, 0.87)
         }
         self.pixel_width = pw
@@ -151,19 +152,30 @@ class TriangleAnimationWriter:
 
 
 def main():
-    # sierpinski = TriangleFractal(DEFAULT_PIXEL_WIDTH, DEFAULT_PIXEL_HEIGHT)
-    # main_triangle = Triangle(Point(0, 1/6), 2/3)
-    # layers = 2
-    # sierpinski.generate_triangles(main_triangle, layers)
-    # sierpinski.save_cairo_surface(f"{layers}_layers.png")
+    args = config.parse_cli()
+    render_config = config.get_configuration(args)
+    layers = render_config["layers"]
 
     triangle_animation = TriangleAnimationWriter(
         DEFAULT_PIXEL_WIDTH,
         DEFAULT_PIXEL_HEIGHT,
-        DEFAULT_FRAME_RATE, 3
+        DEFAULT_FRAME_RATE,
+        layers
     )
 
-    triangle_animation.write_animation(2)
+    triangle = TriangleFractal(
+        DEFAULT_PIXEL_WIDTH,
+        DEFAULT_PIXEL_HEIGHT
+    )
+
+    if render_config["animate"]:
+        triangle_animation.write_animation(2)
+    else:
+        triangle.generate_triangles(
+            Triangle(Point(0, 1/6), 2/3),
+            layers
+        )
+        triangle.save_cairo_surface(f"{layers}_layers.png")
 
 
 if __name__ == '__main__':

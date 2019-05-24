@@ -32,7 +32,7 @@ MEDIUM_QUALITY_CAMERA_CONFIG = {
 LOW_QUALITY_CAMERA_CONFIG = {
     "pixel_height": 480,
     "pixel_width": 854,
-    "frame_rate": 30,
+    "frame_rate": 15,
 }
 
 DEFAULT_CAMERA_CONFIG = MEDIUM_QUALITY_CAMERA_CONFIG
